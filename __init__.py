@@ -1,55 +1,75 @@
+# app.py
 from flask import Flask, render_template, jsonify
+from urllib.request import urlopen
 import json
-from datetime import datetime
-from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
+import logging
 
 app = Flask(__name__)
 
-@app.route("/contact/")
-def MaPremiereAPI():
-    return render_template("contact.html")
+def fetch_tawarano_data():
+    """
+    Récupère et formate les données depuis l'API d'exemple OpenWeather.
+    Renvoie une liste de dicts : {'Jour': <unix_seconds>, 'temp': <celsius>}
+    """
+    try:
+        response = urlopen(
+            'https://samples.openweathermap.org/data/2.5/forecast?lat=0&lon=0&appid=xxx',
+            timeout=10
+        )
+        raw_content = response.read()
+        json_content = json.loads(raw_content.decode('utf-8'))
+    except Exception:
+        logging.exception("Erreur lors de la récupération des données OpenWeather")
+        return []
+
+    results = []
+    for item in json_content.get('list', []):
+        dt_value = item.get('dt')
+        main_obj = item.get('main', {})
+        if dt_value is None or 'temp' not in main_obj:
+            continue
+        temp_celsius = main_obj.get('temp') - 273.15
+        results.append({'Jour': dt_value, 'temp': temp_celsius})
+    return results
+
+@app.route('/')
+def index():
+    return render_template('hello.html')
+
+# Nouvelle route : rend la page de contact esthétique (templates/contact.html)
+@app.route('/contact/')
+def contact_page():
+    return render_template('contact.html')
+
 @app.route('/tawarano/')
 def meteo():
-    """
-    Endpoint JSON qui renvoie les mêmes données que la page histogramme utilisera.
-    """
     results = fetch_tawarano_data()
     return jsonify(results=results)
 
 @app.route('/histogramme/')
 def histogramme():
+    # Injecte les mêmes données que l'endpoint /tawarano/ dans le template
     results = fetch_tawarano_data()
     results_json = json.dumps(results)
     return render_template('histogramme.html', results_json=results_json)
 
-@app.route('/')
-def hello_world():
-    return render_template('hello.html')
-
-@app.route("/rapport/")
+@app.route('/rapport/')
 def mongraphique():
-    return render_template("graphique.html")
+    return render_template('graphique.html')
 
 @app.route('/commits/')
 def commits():
-    req = Request('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits', headers={'User-Agent': 'python-urllib'})
-    try:
-        response = urlopen(req, timeout=10)
-        raw_content = response.read()
-        json_content = json.loads(raw_content.decode('utf-8'))
-    except (HTTPError, URLError, TimeoutError):
-        json_content = []
+    response = urlopen('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits')
+    raw_content = response.read()
+    json_content = json.loads(raw_content.decode('utf-8'))
 
-    commits_per_minute = {i: 0 for i in range(60)}
+    commits_per_minute = {}
+    for i in range(60):
+        commits_per_minute[i] = 0
+
     for commit in json_content:
-        date_string = commit.get('commit', {}).get('author', {}).get('date')
-        if not date_string:
-            continue
-        try:
-            date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
-        except Exception:
-            continue
+        date_string = commit['commit']['author']['date']
+        date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
         minutes = date_object.minute
         commits_per_minute[minutes] += 1
 
@@ -68,6 +88,7 @@ def commits():
 @app.route("/commits-graph/")
 def commits_graph():
     return render_template("commits.html")
+
 
 if __name__ == "__main__":
     app.run(debug=True)
