@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Commits par minute — Histogramme</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    body{ font-family: Inter, Arial, sans-serif; margin:0; background: linear-gradient(180deg,#0b1220,#07102a); color:#eaf6ff; }
+    .wrap{ max-width:980px; margin:28px auto; padding:20px; }
+    .card{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:20px; border-radius:14px; box-shadow: 0 14px 40px rgba(2,6,23,0.6); border:1px solid rgba(255,255,255,0.03); }
+    h1{ margin:0 0 8px 0; font-size:20px; }
+    p.meta{ margin:0 0 16px 0; color:#9fb2c9; font-size:14px; }
+    #chart_div{ width:100%; height:460px; }
+    .controls{ display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+    .btn{ background: linear-gradient(90deg,#7CE7C7,#68A8FF); color:#042033; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:700; }
+    .input{ background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; color: #dff6ff; }
+    .legend { margin-top:10px; color:#9fb2c9; font-size:13px; }
+    @media (max-width:680px){ #chart_div{ height:380px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Commits par minute (histogramme)</h1>
+      
+      <div class="controls" aria-hidden="false">
+        <label style="color:#9fb2c9">Repo :
+          <input id="repoInput" class="input" value="JB-700/5MCSI_Metriques" style="margin-left:8px; width:260px;">
+        </label>
+        <label style="color:#9fb2c9">Pages :
+          <input id="pagesInput" class="input" value="2" style="margin-left:8px; width:60px;">
+        </label>
+        <button id="refreshBtn" class="btn">Rafraîchir</button>
+        <div style="margin-left:auto; color:#9fb2c9; font-size:13px" id="infoStatus"></div>
+      </div>
+
+      <div id="chart_div" role="img" aria-label="Histogramme des commits par minute"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <script>
+    // load google charts
+    google.charts.load('current', {packages: ['corechart']});
+    google.charts.setOnLoadCallback(init);
+
+    const repoInput = document.getElementById('repoInput');
+    const pagesInput = document.getElementById('pagesInput');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const infoStatus = document.getElementById('infoStatus');
+    const legend = document.getElementById('legend');
+    const chartDiv = document.getElementById('chart_div');
+
+    async function fetchData(repo, pages) {
+      infoStatus.textContent = 'Chargement…';
+      try {
+        const resp = await fetch(`/commits/data?repo=${encodeURIComponent(repo)}&pages=${encodeURIComponent(pages)}`);
+        if (!resp.ok) {
+          const txt = await resp.text();
+          infoStatus.textContent = `Erreur serveur: ${resp.status}`;
+          console.error(txt);
+          return null;
+        }
+        const json = await resp.json();
+        infoStatus.textContent = `${json.fetched_commits} commits récupérés — total affiché : ${json.total_commits}`;
+        return json;
+      } catch (err) {
+        console.error(err);
+        infoStatus.textContent = 'Erreur réseau';
+        return null;
+      }
+    }
+
+    function drawChartFromData(json) {
+      if (!json) return;
+      const labels = json.labels;    // ["00","01",...]
+      const counts = json.counts;    // array length 60
+
+      const dataArray = [['Minute', 'Commits']];
+      for (let i = 0; i < labels.length; i++) {
+        dataArray.push([labels[i], counts[i]]);
+      }
+
+      const data = google.visualization.arrayToDataTable(dataArray);
+
+      const options = {
+        title: `Répartition des commits par minute — ${json.repo}`,
+        legend: { position: 'none' },
+        hAxis: { title: 'Minute (00 → 59)' },
+        vAxis: { title: 'Nombre de commits', minValue: 0 },
+        chartArea: { left: 70, top: 70, width: '80%', height: '65%' },
+        animation: { startup: true, duration: 500, easing: 'out' },
+        bar: { groupWidth: '70%' }
+      };
+
+      const chart = new google.visualization.ColumnChart(chartDiv);
+      chart.draw(data, options);
+
+      // petit résumé sous le graphique
+      legend.textContent = `Labels: ${labels.length} minutes — Total commits analysés : ${json.total_commits} (échantillon: ${json.fetched_commits})`;
+    }
+
+    // initial draw
+    async function init() {
+      const repo = repoInput.value.trim();
+      const pages = pagesInput.value.trim() || '2';
+      const json = await fetchData(repo, pages);
+      drawChartFromData(json);
+    }
+
+    // refresh on button
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      await init();
+      setTimeout(() => { refreshBtn.disabled = false; }, 600);
+    });
+
+    // redraw on resize (debounce)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        // redessiner en rechargeant les données actuelles
+        init();
+      }, 160);
+    });
+  </script>
+</body>
+</html>
