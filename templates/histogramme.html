@@ -1,90 +1,77 @@
 <!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Metrique — Graphique en colonnes</title>
-    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-    <style>
-      /* Simple style pour que le div du graphique ait une taille raisonnable */
-      html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; }
-      #chart_div {
-        width: 100%;
-        max-width: 900px;
-        height: 480px;
-        margin: 24px auto;
-      }
-      @media (max-width:600px) {
-        #chart_div { height: 360px; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="chart_div" role="img" aria-label="Graphique en colonnes"></div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Histogramme — Tawarano</title>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    html,body { height:100%; margin:0; font-family: Arial,Helvetica,sans-serif; background:#f6f7fb; }
+    .container { max-width: 980px; margin: 28px auto; padding: 16px; background:white; border-radius:8px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+    #chart_div { width:100%; height:480px; }
+    @media (max-width:600px) { #chart_div { height:360px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Évolution des températures — Tawarano</h1>
+    <p>Les données affichées proviennent du même endpoint <code>/tawarano/</code>.</p>
+    <div id="chart_div" role="img" aria-label="Histogramme des températures"></div>
+  </div>
 
-    <script>
-      // Charge la librairie Google Charts
-      google.charts.load('current', { packages: ['corechart'] });
-      google.charts.setOnLoadCallback(drawBackgroundColor);
+  <script>
+    // Données JSON injectées par Flask
+    // results_json est une chaîne JSON sûre (render_template fournit la variable)
+    const injectedData = {{ results_json | safe }};
 
-      function drawBackgroundColor() {
-        function drawChart(data) {
-          // Construire DataTable
-          var dataTable = new google.visualization.DataTable();
-          dataTable.addColumn('string', 'Date');
-          dataTable.addColumn('number', 'Valeur');
+    // Charger Google Charts
+    google.charts.load('current', { packages: ['corechart'] });
+    google.charts.setOnLoadCallback(drawChartFromInjectedData);
 
-          // Remplir les lignes à partir de data.results (comme dans ton exemple)
-          if (Array.isArray(data.results)) {
-            data.results.forEach(entry => {
-              // entry.Jour est en secondes Unix d'après ton code initial
-              var date = new Date(entry.Jour * 1000);
-              dataTable.addRow([date.toLocaleDateString(), entry.temp]);
-            });
-          }
+    function drawChartFromInjectedData() {
+      // Préparer la DataTable
+      const dataTable = new google.visualization.DataTable();
+      dataTable.addColumn('string', 'Date');
+      dataTable.addColumn('number', 'Temp (°C)');
 
-          // Options du ColumnChart
-          var options = {
-            title: 'Évolution des températures de la ville de Tawarano',
-            legend: { position: 'bottom' },
-            // chartArea pour éviter que les labels soient coupés
-            chartArea: { left: 60, top: 60, width: '80%', height: '65%' },
-            animation: { startup: true, duration: 500, easing: 'out' },
-            vAxis: { format: 'decimal' }
-          };
-
-          // <-- SEULE MODIFICATION PRINCIPALE : ColumnChart au lieu de LineChart -->
-          var chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
-          chart.draw(dataTable, options);
-        }
-
-        // Récupère les données depuis l'API et dessine
-        fetch('/tawarano/')
-          .then(response => response.json())
-          .then(data => { drawChart(data); })
-          .catch(err => {
-            console.error('Erreur de récupération des données :', err);
-            // Afficher un message simple si besoin
-            document.getElementById('chart_div').innerText = 'Impossible de charger les données.';
-          });
-
-        // Redessiner au resize (debounce)
-        var resizeTimer;
-        window.addEventListener('resize', function() {
-          clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(function() {
-            // Relancer fetch n'est pas nécessaire — redessine si la lib est chargée
-            if (google && google.visualization) {
-              // Si tu préfères, on pourrait stocker les données en closure pour éviter de re-fetcher.
-              // Ici on redessine simplement en refetch pour rester synchrone avec l'API.
-              fetch('/tawarano/')
-                .then(response => response.json())
-                .then(data => { drawChart(data); })
-                .catch(() => {/* noop */});
-            }
-          }, 150);
+      if (Array.isArray(injectedData) && injectedData.length > 0) {
+        injectedData.forEach(entry => {
+          // entry.Jour attendu en secondes unix
+          const date = new Date(entry.Jour * 1000);
+          // Utiliser une date lisible, mais la colonne reste string pour l'axe X
+          const label = date.toLocaleString(); // ou toLocaleDateString() si tu veux uniquement la date
+          // temp peut être float
+          dataTable.addRow([label, Number(entry.temp)]);
         });
+      } else {
+        // Si pas de données, afficher une ligne vide pour que Google Charts ne plante pas
+        dataTable.addRow(['-', 0]);
       }
-    </script>
-  </body>
+
+      const options = {
+        title: 'Évolution des températures de la ville de Tawarano',
+        legend: { position: 'bottom' },
+        bar: { groupWidth: '70%' },
+        chartArea: { left: 70, top: 70, width: '80%', height: '65%' },
+        vAxis: { title: '°C' },
+        hAxis: { title: 'Date' },
+        animation: { startup: true, duration: 500, easing: 'out' }
+      };
+
+      const chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+      chart.draw(dataTable, options);
+    }
+
+    // Redessiner au resize (debounce)
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (google && google.visualization) {
+          drawChartFromInjectedData();
+        }
+      }, 150);
+    });
+  </script>
+</body>
 </html>
