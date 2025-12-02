@@ -9,18 +9,19 @@ app = Flask(__name__)
 @app.route("/contact/")
 def MaPremiereAPI():
     return render_template("contact.html")
-
 @app.route('/tawarano/')
 def meteo():
-    response = urlopen('https://samples.openweathermap.org/data/2.5/forecast?lat=0&lon=0&appid=xxx')
-    raw_content = response.read()
-    json_content = json.loads(raw_content.decode('utf-8'))
-    results = []
-    for list_element in json_content.get('list', []):
-        dt_value = list_element.get('dt')
-        temp_day_value = list_element.get('main', {}).get('temp') - 273.15
-        results.append({'Jour': dt_value, 'temp': temp_day_value})
+    """
+    Endpoint JSON qui renvoie les mêmes données que la page histogramme utilisera.
+    """
+    results = fetch_tawarano_data()
     return jsonify(results=results)
+
+@app.route('/histogramme/')
+def histogramme():
+    results = fetch_tawarano_data()
+    results_json = json.dumps(results)
+    return render_template('histogramme.html', results_json=results_json)
 
 @app.route('/')
 def hello_world():
@@ -29,12 +30,6 @@ def hello_world():
 @app.route("/rapport/")
 def mongraphique():
     return render_template("graphique.html")
-
-@app.route('/histogramme/')
-def histogramme():
-    results = fetch_tawarano_data()
-    results_json = json.dumps(results)
-    return render_template('histogramme.html', results_json=results_json)
 
 @app.route('/commits/')
 def commits():
