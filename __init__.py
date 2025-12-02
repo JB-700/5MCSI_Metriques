@@ -1,7 +1,8 @@
 from flask import Flask, render_template, jsonify
 import json
 from datetime import datetime
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 
 app = Flask(__name__)
 
@@ -35,21 +36,37 @@ def histogramme():
 
 @app.route('/commits/')
 def commits():
-    response = urlopen('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits')
-    raw_content = response.read()
-    json_content = json.loads(raw_content.decode('utf-8'))
-    commits_per_minute = {}
-    for i in range(60):
-        commits_per_minute[i] = 0
+    req = Request('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits', headers={'User-Agent': 'python-urllib'})
+    try:
+        response = urlopen(req, timeout=10)
+        raw_content = response.read()
+        json_content = json.loads(raw_content.decode('utf-8'))
+    except (HTTPError, URLError, TimeoutError):
+        json_content = []
+
+    commits_per_minute = {i: 0 for i in range(60)}
     for commit in json_content:
-        date_string = commit['commit']['author']['date']
-        date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
+        date_string = commit.get('commit', {}).get('author', {}).get('date')
+        if not date_string:
+            continue
+        try:
+            date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            continue
         minutes = date_object.minute
         commits_per_minute[minutes] += 1
-    results = []
-    for minute, count in commits_per_minute.items():
-        results.append({'minute': minute, 'count': count})
-    return jsonify(results=results)
+
+    labels = [f"{i:02d}" for i in range(60)]
+    counts = [commits_per_minute[i] for i in range(60)]
+    data_payload = {
+        'repo': 'JB-700/5MCSI_Metriques',
+        'labels': labels,
+        'counts': counts,
+        'total_commits': sum(counts),
+        'fetched_commits': len(json_content)
+    }
+    results_json = json.dumps(data_payload)
+    return render_template("commits.html", results_json=results_json)
 
 @app.route("/commits-graph/")
 def commits_graph():
