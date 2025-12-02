@@ -7,7 +7,7 @@ Vous allez créer des API, découvrir les Actions et les Secrets GitHUB pour au 
 Large programme mais tout à fait accessible et ne nécessitant pas de base technique particulière. Juste de l'observation et de la rigueur dans votre travail.
 
 -------------------------------------------------------------------------------------------------------
-Séquence 1 : GitHUB
+Séquence 1 : GitHUB 
 -------------------------------------------------------------------------------------------------------
 Objectif : Création d'un Repository GitHUB pour travailler avec son projet  
 Difficulté : Très facile (~10 minutes)
