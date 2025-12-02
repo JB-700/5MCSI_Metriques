@@ -30,9 +30,14 @@ def hello_world():
 def mongraphique():
     return render_template("graphique.html")
 
-@app.route("/histogramme/")
+@app.route('/histogramme/')
+
+
+
 def histogramme():
-    return render_template("histogramme.html")
+    results = fetch_tawarano_data()
+    results_json = json.dumps(results)
+    return render_template('histogramme.html', results_json=results_json)
 
 @app.route('/commits/')
 def commits():
