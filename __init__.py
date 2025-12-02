@@ -59,17 +59,23 @@ def mongraphique():
 
 @app.route('/commits/')
 def commits():
-    response = urlopen('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits')
-    raw_content = response.read()
-    json_content = json.loads(raw_content.decode('utf-8'))
+    req = Request('https://api.github.com/repos/JB-700/5MCSI_Metriques/commits', headers={'User-Agent': 'python-urllib'})
+    try:
+        response = urlopen(req, timeout=10)
+        raw_content = response.read()
+        json_content = json.loads(raw_content.decode('utf-8'))
+    except (HTTPError, URLError, TimeoutError):
+        json_content = []
 
-    commits_per_minute = {}
-    for i in range(60):
-        commits_per_minute[i] = 0
-
+    commits_per_minute = {i: 0 for i in range(60)}
     for commit in json_content:
-        date_string = commit['commit']['author']['date']
-        date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
+        date_string = commit.get('commit', {}).get('author', {}).get('date')
+        if not date_string:
+            continue
+        try:
+            date_object = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            continue
         minutes = date_object.minute
         commits_per_minute[minutes] += 1
 
