@@ -31,9 +31,6 @@ def mongraphique():
     return render_template("graphique.html")
 
 @app.route('/histogramme/')
-
-
-
 def histogramme():
     results = fetch_tawarano_data()
     results_json = json.dumps(results)
