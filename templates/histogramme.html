@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Metrique — Graphique en colonnes</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <style>
+      /* Simple style pour que le div du graphique ait une taille raisonnable */
+      html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; }
+      #chart_div {
+        width: 100%;
+        max-width: 900px;
+        height: 480px;
+        margin: 24px auto;
+      }
+      @media (max-width:600px) {
+        #chart_div { height: 360px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chart_div" role="img" aria-label="Graphique en colonnes"></div>
+
+    <script>
+      // Charge la librairie Google Charts
+      google.charts.load('current', { packages: ['corechart'] });
+      google.charts.setOnLoadCallback(drawBackgroundColor);
+
+      function drawBackgroundColor() {
+        function drawChart(data) {
+          // Construire DataTable
+          var dataTable = new google.visualization.DataTable();
+          dataTable.addColumn('string', 'Date');
+          dataTable.addColumn('number', 'Valeur');
+
+          // Remplir les lignes à partir de data.results (comme dans ton exemple)
+          if (Array.isArray(data.results)) {
+            data.results.forEach(entry => {
+              // entry.Jour est en secondes Unix d'après ton code initial
+              var date = new Date(entry.Jour * 1000);
+              dataTable.addRow([date.toLocaleDateString(), entry.temp]);
+            });
+          }
+
+          // Options du ColumnChart
+          var options = {
+            title: 'Évolution des températures de la ville de Tawarano',
+            legend: { position: 'bottom' },
+            // chartArea pour éviter que les labels soient coupés
+            chartArea: { left: 60, top: 60, width: '80%', height: '65%' },
+            animation: { startup: true, duration: 500, easing: 'out' },
+            vAxis: { format: 'decimal' }
+          };
+
+          // <-- SEULE MODIFICATION PRINCIPALE : ColumnChart au lieu de LineChart -->
+          var chart = new google.visualization.ColumnChart(document.getElementById('chart_div'));
+          chart.draw(dataTable, options);
+        }
+
+        // Récupère les données depuis l'API et dessine
+        fetch('/tawarano/')
+          .then(response => response.json())
+          .then(data => { drawChart(data); })
+          .catch(err => {
+            console.error('Erreur de récupération des données :', err);
+            // Afficher un message simple si besoin
+            document.getElementById('chart_div').innerText = 'Impossible de charger les données.';
+          });
+
+        // Redessiner au resize (debounce)
+        var resizeTimer;
+        window.addEventListener('resize', function() {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(function() {
+            // Relancer fetch n'est pas nécessaire — redessine si la lib est chargée
+            if (google && google.visualization) {
+              // Si tu préfères, on pourrait stocker les données en closure pour éviter de re-fetcher.
+              // Ici on redessine simplement en refetch pour rester synchrone avec l'API.
+              fetch('/tawarano/')
+                .then(response => response.json())
+                .then(data => { drawChart(data); })
+                .catch(() => {/* noop */});
+            }
+          }, 150);
+        });
+      }
+    </script>
+  </body>
+</html>
